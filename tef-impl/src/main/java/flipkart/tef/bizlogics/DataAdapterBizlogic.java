@@ -27,6 +27,7 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A specialized bizlogic that is responsible for emitting data
@@ -43,6 +44,7 @@ public abstract class DataAdapterBizlogic<T> implements IDataBizlogic<T>, Mutati
      * on injected members.
      */
     private final Map<DataAdapterKey<?>, Field> fieldCache;
+    private static final ConcurrentHashMap<String, String> emitDataCache = new ConcurrentHashMap<>();
     private final String emittedDataName;
     private final Class<T> resultType;
 
@@ -81,6 +83,10 @@ public abstract class DataAdapterBizlogic<T> implements IDataBizlogic<T>, Mutati
 
     @SuppressWarnings("rawtypes")
     public static String getEmittedDataName(Class<? extends DataAdapterBizlogic> clazz) {
+        if (emitDataCache.containsKey(clazz.getName())) {
+            return emitDataCache.get(clazz.getName());
+        }
+        String key = clazz.getName();
         // If method interceptor is applied via guice AOP , then guice creates an instance wrapped by EnhancerByGuice
         // and then it hinders any annotation present on the superclass. So extracting superclass to find the annotations.
         if (clazz.getName().contains(BytecodeGen.ENHANCER_BY_GUICE_MARKER)) {
@@ -89,11 +95,9 @@ public abstract class DataAdapterBizlogic<T> implements IDataBizlogic<T>, Mutati
         }
 
         EmitData emitData = clazz.getAnnotation(EmitData.class);
-        if (emitData != null) {
-            return emitData.name();
-        } else {
-            return "";
-        }
+        String result = emitData != null ? emitData.name() : "";
+        emitDataCache.putIfAbsent(key, result);
+        return result;
     }
 
     @Override
